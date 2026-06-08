@@ -21,6 +21,36 @@ Reproduce with `run_validation.py` (see README).
   Kendall tau  federated vs pooled       : [1.000 1.000]  (mean 1.000)
 ```
 
+## Longitudinal (interdependent visits per subject)
+
+Subjects have multiple visits sharing one subtype and a monotonically
+non-decreasing stage (`LongitudinalZscoreSustain`). Reproduce with
+`run_validation_longitudinal.py`.
+
+Full-scale equivalence — 600 subjects × 3 visits, 10 biomarkers, **3 subtypes**,
+10 centres, 15 starts:
+
+```
+=== EQUIVALENCE: federated-long EM vs pooled-long EM (same init + RNG) ===
+  pooled loglike = -29448.392220
+  fed    loglike = -29448.392220
+  |loglike diff| = 7.276e-12     |f diff| = 1.665e-16
+  sequences identical = True
+```
+
+Recovery — 150 subjects × 3 visits, 5 biomarkers, 2 subtypes, 5 centres:
+
+```
+  fed    loglike = -3872.983     fractions = [0.557 0.443]
+  Kendall tau  federated vs ground truth : [0.924 0.905]  (mean 0.914)
+  Kendall tau  federated vs pooled       : [1.000 1.000]  (mean 1.000)
+```
+
+Sanity: with **one visit per subject** the longitudinal model is *identical* to
+cross-sectional (`_calculate_likelihood_stage` diff `0`, pinned by
+`tests/test_regression_golden.py` and `tests/test_longitudinal_zscore.py`). The
+opt-in `SUSTAIN_FULL=1` test runs the full 10-biomarker / 3-subtype recovery.
+
 ## Takeaways
 
 - **Federation is exact.** From an identical init + RNG, federated EM reproduces
@@ -35,10 +65,11 @@ Reproduce with `run_validation.py` (see README).
 
 ## Notes / limitations
 
-- This validates the **ML fit** (federated EM). Federated MCMC uncertainty,
-  federated number-of-subtypes selection (per-centre `f` + federated CVIC) and
-  longitudinal handling are roadmap items (see README).
-- The federated fit is currently **correct but slow** (Python per-centre loops +
-  recomputation in the sequence search); inner-loop caching is the obvious next
-  optimisation before large real-data runs.
+- This validates the **ML fit** (federated EM), cross-sectional **and
+  longitudinal**. Federated MCMC uncertainty and federated number-of-subtypes
+  selection (per-centre `f` + federated CVIC) remain roadmap items (see README).
+- The hot paths are now optimised (bounded per-sequence stage-likelihood cache;
+  vectorised longitudinal monotone-path DP), verified numerically exact by the
+  golden regression tests. Further speed-ups (e.g. batching the sequence search)
+  are possible before very large real-data runs.
 - Harmonisation across centres is assumed upstream and out of scope.
