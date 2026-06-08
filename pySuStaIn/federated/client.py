@@ -25,7 +25,7 @@ from pySuStaIn.ZscoreSustain import ZscoreSustain, ZScoreSustainData
 class FederatedClient:
     """Generic centre wrapping a local model + its data object."""
 
-    def __init__(self, local_model, sustain_data, name="centre", cache_size=4096):
+    def __init__(self, local_model, sustain_data, name="centre", cache_size=512):
         self._model = local_model
         self._data = sustain_data
         self.name = name
@@ -33,9 +33,8 @@ class FederatedClient:
         self.M = int(sustain_data.getNumSamples())       # number of subjects
         # Memoise the per-sequence stage-likelihood. It is a pure function of the
         # event ordering (the model params and data are fixed), so caching is
-        # numerically exact. Bounded LRU keyed by the integer ordering — this
-        # turns the many repeated calls in the greedy sequence search (the fixed
-        # non-moving subtypes, revisited candidates) into cache hits.
+        # numerically exact. Bounded LRU keyed by the integer ordering; keep the
+        # default conservative because each cached value is subjects x stages.
         self._cache = OrderedDict()
         self._cache_max = int(cache_size)
 
@@ -139,7 +138,7 @@ class ZscoreFederatedClient(FederatedClient):
     """Cross-sectional Z-score centre (one row per subject)."""
 
     def __init__(self, data, Z_vals, Z_max, biomarker_labels, name="centre",
-                 seed=0, output_folder=None):
+                 seed=0, output_folder=None, cache_size=512):
         data = np.asarray(data, dtype=float)
         model = ZscoreSustain(
             data, Z_vals, Z_max, biomarker_labels,
@@ -148,14 +147,14 @@ class ZscoreFederatedClient(FederatedClient):
             dataset_name=name, use_parallel_startpoints=False, seed=seed,
         )
         sustain_data = ZScoreSustainData(data, model.stage_zscore.shape[1])
-        super().__init__(model, sustain_data, name=name)
+        super().__init__(model, sustain_data, name=name, cache_size=cache_size)
 
 
 class LongitudinalFederatedClient(FederatedClient):
     """Longitudinal centre (multiple interdependent visits per subject)."""
 
     def __init__(self, visit_data, subject_ids, Z_vals, Z_max, biomarker_labels,
-                 name="centre", seed=0, output_folder=None):
+                 name="centre", seed=0, output_folder=None, cache_size=512):
         # imported here to avoid a hard dependency when only cross-sectional is used
         from pySuStaIn.LongitudinalZscoreSustain import LongitudinalZscoreSustain
         model = LongitudinalZscoreSustain(
@@ -164,4 +163,4 @@ class LongitudinalFederatedClient(FederatedClient):
             output_folder=_mk_output(output_folder, "fed_client_long_"),
             dataset_name=name, use_parallel_startpoints=False, seed=seed,
         )
-        super().__init__(model, model._AbstractSustain__sustainData, name=name)
+        super().__init__(model, model._AbstractSustain__sustainData, name=name, cache_size=cache_size)
