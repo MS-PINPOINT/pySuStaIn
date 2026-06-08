@@ -16,7 +16,16 @@ Public API:
     ZscoreFederatedClient   - one centre (holds local data, returns aggregates)
     FederatedZscoreSustain  - the server/orchestrator (subclasses ZscoreSustain)
 """
-from .client import ZscoreFederatedClient
+from .client import (
+    FederatedClient,
+    ZscoreFederatedClient,
+    LongitudinalFederatedClient,
+)
 from .server import FederatedZscoreSustain
 
-__all__ = ["ZscoreFederatedClient", "FederatedZscoreSustain"]
+__all__ = [
+    "FederatedClient",
+    "ZscoreFederatedClient",
+    "LongitudinalFederatedClient",
+    "FederatedZscoreSustain",
+]

@@ -55,6 +55,41 @@ S, f, loglike = fed.fit(N_S=2, n_startpoints=25, seed=0)
 assignments = fed.subtype_and_stage(S, f)
 ```
 
+## Longitudinal data (interdependent visits per subject)
+
+Cross-sectional SuStaIn treats every row as an independent subject. For
+longitudinal data a **subject** has several visits that are *interdependent*:
+they share one subtype and a **monotonically non-decreasing** SuStaIn stage.
+This is implemented in `pySuStaIn/LongitudinalZscoreSustain.py` and changes only
+the per-subject likelihood (a monotone-path dynamic program over the visits);
+the EM, greedy sequence search and federation are inherited unchanged. With one
+visit per subject it is **identical** to cross-sectional SuStaIn.
+
+Data format: `visit_data` is `(n_visits × n_biomarkers)` positive Z-scores,
+`subject_ids` `(n_visits,)` groups visits by subject, and a subject's rows are
+assumed to be in **chronological order**.
+
+```python
+from pySuStaIn.LongitudinalZscoreSustain import LongitudinalZscoreSustain
+from pySuStaIn.federated import LongitudinalFederatedClient, FederatedZscoreSustain
+
+# pooled
+model = LongitudinalZscoreSustain(visit_data, subject_ids, Z_vals, Z_max, labels,
+                                  N_startpoints, N_S_max, N_iterations_MCMC,
+                                  out, "ds", False)
+
+# federated: one centre per site (visits of a subject stay together at its centre)
+clients = [LongitudinalFederatedClient(vd_c, sid_c, Z_vals, Z_max, labels, name=f"c{i}")
+           for i, (vd_c, sid_c) in enumerate(per_centre_visits)]
+fed = FederatedZscoreSustain(clients, Z_vals, Z_max, labels, N_S_max=3)
+S, f, loglike = fed.fit(N_S=3, n_startpoints=25, seed=0)
+```
+
+The federated layer is **model-agnostic** (`FederatedClient` wraps any model with
+`_calculate_likelihood_stage` + `stage_zscore`), so cross-sectional and
+longitudinal centres use the same server and aggregation — the longitudinal case
+required no change to the federation code.
+
 ## Validation
 
 `pySuStaIn/federated/experiments/run_validation.py` simulates ground-truth data
@@ -72,17 +107,39 @@ python -m pySuStaIn.federated.experiments.run_validation \
 # add --heterogeneous to give centres uneven subtype prevalence
 ```
 
-Fast deterministic CI check: `pytest tests/test_federated_zscore.py`.
+## Tests & CI
+
+Two tiers, so users/CI don't pay for the expensive runs by default:
+
+- **Cheap (run by default, in CI):** deterministic correctness — federated EM ==
+  pooled EM, single-visit longitudinal == cross-sectional, federated-longitudinal
+  == pooled-longitudinal.
+  ```bash
+  pytest tests/test_federated_zscore.py tests/test_longitudinal_zscore.py
+  ```
+- **Expensive (opt-in):** ground-truth recovery on simulated data (10 biomarkers,
+  3 subtypes, multi-start). Skipped unless you ask for it:
+  ```bash
+  SUSTAIN_FULL=1 pytest tests/test_longitudinal_zscore.py -k recovers
+  # or the full experiment with a report:
+  python -m pySuStaIn.federated.experiments.run_validation_longitudinal \
+      --n-biomarkers 10 --n-subtypes 3 --n-subjects 600 --n-visits 3 --n-centres 10
+  ```
+
+GitHub Actions (`.github/workflows/federated-tests.yml`) runs the **cheap** tests
+on every push/PR with minimal deps (no `awkde`/`kde_ebm`). The **expensive**
+recovery job is *not* run automatically — trigger it via the workflow's manual
+“Run workflow” button (`run_expensive=true`) or run it locally as above.
 
 ## Scope & roadmap
 
-- **Now:** cross-sectional Z-score model, ML fit via federated EM (exact),
-  candidate-pool initialisation, per-centre local assignment.
+- **Now:** cross-sectional **and longitudinal** Z-score models, ML fit via
+  federated EM (exact), model-agnostic federation layer, candidate-pool
+  initialisation, per-centre local assignment.
 - **Not yet:** federated MCMC uncertainty (decomposes the same way — one scalar
   per centre per proposed sequence; communication-bound, batchable);
   federated number-of-subtypes selection via per-centre `f` + federated CVIC;
-  longitudinal handling (kept local: one-visit-per-subject or inverse-visit
-  weighting — does not change the federation protocol). Harmonisation is assumed
+  inner-loop caching (current fit is correct but slow). Harmonisation is assumed
   upstream and out of scope here.
 - **Communication:** the in-process experiments call methods directly; the
   client/server split is deliberately a clean boundary so it can be wired to an

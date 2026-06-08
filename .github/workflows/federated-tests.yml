@@ -1,0 +1,52 @@
+name: federated-sustain tests
+
+# Cheap correctness tests run on every push/PR. The expensive ground-truth
+# recovery tests are NOT run by default (they are slow / costly on hosted
+# runners) — trigger them manually via "Run workflow" with run_expensive=true,
+# or run locally with:  SUSTAIN_FULL=1 pytest tests/test_longitudinal_zscore.py
+
+on:
+  push:
+    branches: [federated-sustain, master, development]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_expensive:
+        description: "Also run the expensive ground-truth recovery tests"
+        type: boolean
+        default: false
+
+jobs:
+  cheap-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Install minimal deps (no awkde/kde_ebm — not needed for Z-score/federated)
+        run: |
+          python -m pip install --upgrade pip
+          pip install "numpy>=1.18,<2.4" scipy scikit-learn matplotlib pandas pathos "dill>=0.3.8" tqdm pytest
+          pip install -e . --no-deps
+      - name: Run cheap federated + longitudinal tests
+        run: pytest tests/test_federated_zscore.py tests/test_longitudinal_zscore.py -v
+
+  expensive-recovery:
+    # opt-in only: manual dispatch with run_expensive=true
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_expensive }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install "numpy>=1.18,<2.4" scipy scikit-learn matplotlib pandas pathos "dill>=0.3.8" tqdm pytest
+          pip install -e . --no-deps
+      - name: Run expensive ground-truth recovery (cross-sectional + longitudinal)
+        env:
+          SUSTAIN_FULL: "1"
+        run: pytest tests/test_longitudinal_zscore.py -v -k recovers
