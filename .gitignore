@@ -154,3 +154,7 @@ dmypy.json
 
 .DS_Store
 
+
+# federated experiment outputs
+_experiments_out/
+*.egg-info/
