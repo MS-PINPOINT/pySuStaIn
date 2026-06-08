@@ -164,9 +164,22 @@ class FederatedZscoreSustain(ZscoreSustain):
                 best = (ml_seq, ml_f, ml_like)
         return best
 
-    def subtype_and_stage(self, S, f):
-        """Per-centre ML subtype+stage (assignments computed locally)."""
-        out = {}
-        for c in self.clients:
-            out[c.name] = c.subtype_and_stage(S, np.asarray(f).reshape(-1))
-        return out
+    def run_sustain_algorithm(self, *args, **kwargs):
+        raise NotImplementedError(
+            "FederatedZscoreSustain currently supports ML fitting via fit() and "
+            "fit_em() only. The inherited run_sustain_algorithm() also runs "
+            "MCMC uncertainty and per-subject central staging, which are not "
+            "implemented for the aggregate-only federated path."
+        )
+
+    def subtype_and_stage(self, S, f, *, return_individual=False):
+        """Per-centre subtype/stage summaries by default.
+
+        Individual assignments are row-level outputs. Keep them at the centre in
+        a real federation; ``return_individual=True`` is only for local
+        in-process simulations or debugging where row-level return is allowed.
+        """
+        f = np.asarray(f).reshape(-1)
+        if return_individual:
+            return {c.name: c.subtype_and_stage(S, f) for c in self.clients}
+        return {c.name: c.subtype_stage_summary(S, f) for c in self.clients}

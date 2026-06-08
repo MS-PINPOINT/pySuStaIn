@@ -51,8 +51,8 @@ S, f, loglike = fed.fit_em(S_init, f_init, rng)
 # multi-start ML fit for a fixed number of subtypes:
 S, f, loglike = fed.fit(N_S=2, n_startpoints=25, seed=0)
 
-# per-centre ML subtype + stage (assignments computed locally):
-assignments = fed.subtype_and_stage(S, f)
+# aggregate per-centre subtype/stage counts; row-level assignments stay local:
+summaries = fed.subtype_and_stage(S, f)
 ```
 
 ## Longitudinal data (interdependent visits per subject)
