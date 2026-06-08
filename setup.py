@@ -2,7 +2,7 @@
 # License: TBC
 __version__ = '0.1'
 
-from setuptools import setup
+from setuptools import find_packages, setup
 
 #parse the requirement.txt file, ignoring commented lines, placing results in install_reqs
 with open('requirements.txt', 'r') as f:
@@ -26,7 +26,7 @@ setup(name=               'pySuStaIn',
       maintainer=         'Leon Aksman',
       maintainer_email=   'l.aksman@ucl.ac.uk',
       license=		        'TBC',
-      packages=			      ['pySuStaIn', 'sim'],
+      packages=			      find_packages(),
       python_requires=  	'>=3.7',
       install_requires =  install_reqs,	#the parsed requirements from requirements.txt
       entry_points=			  {},

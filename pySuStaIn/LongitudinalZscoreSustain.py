@@ -24,15 +24,22 @@ Data layout: ``visit_data`` is (n_visits x n_biomarkers) of positive Z-scores,
 ``subject_ids`` (n_visits,) groups visits by subject, and rows for a subject are
 assumed to be in chronological order.
 """
+from collections import defaultdict
+
 import numpy as np
 
+from pySuStaIn.AbstractSustain import AbstractSustainData
 from pySuStaIn.ZscoreSustain import ZscoreSustain, ZScoreSustainData
 
 
-class LongitudinalZScoreSustainData:
+class LongitudinalZScoreSustainData(AbstractSustainData):
     def __init__(self, visit_data, subject_ids, numStages):
         self.visit_data = np.asarray(visit_data, dtype=float)
         self.subject_ids = np.asarray(subject_ids)
+        if self.visit_data.ndim != 2:
+            raise ValueError("visit_data must be a 2D array of shape (visits, biomarkers)")
+        if self.subject_ids.shape[0] != self.visit_data.shape[0]:
+            raise ValueError("subject_ids must have one entry per visit_data row")
         self.__numStages = numStages
         # group visit rows by subject, preserving first-appearance order and the
         # within-subject row order (assumed chronological)
@@ -98,12 +105,18 @@ class LongitudinalZscoreSustain(ZscoreSustain):
         M = len(groups)
         Np1 = E.shape[1]
         J = np.zeros((M, Np1))
+        # Run the monotone-path DP vectorised over subjects, grouped by their
+        # number of visits V (same operations as the per-subject recursion,
+        # batched). g_v(k) = sum_{k'>=k} e_v(k') g_{v+1}(k') is a reverse cumsum.
+        by_v = defaultdict(list)
         for m, rows in enumerate(groups):
-            e = E[rows]                      # (V, N+1), chronological
-            V = e.shape[0]
-            g = np.ones(Np1)                 # g_{V+1}
-            for v in range(V - 1, 0, -1):    # visits V..2 (0-indexed V-1..1)
-                cont = e[v] * g
-                g = np.cumsum(cont[::-1])[::-1]   # g_v(k) = sum_{k'>=k} e_v(k') g_{v+1}(k')
-            J[m] = e[0] * g                  # joint with baseline stage k_1
+            by_v[len(rows)].append(m)
+        for V, subj_idx in by_v.items():
+            subj_idx = np.asarray(subj_idx)
+            A = np.stack([E[groups[m]] for m in subj_idx], axis=0)  # (n_g, V, N+1)
+            g = np.ones((len(subj_idx), Np1))                       # g_{V+1}
+            for v in range(V - 1, 0, -1):                           # visits V..2
+                cont = A[:, v, :] * g
+                g = np.cumsum(cont[:, ::-1], axis=1)[:, ::-1]
+            J[subj_idx] = A[:, 0, :] * g                            # joint with baseline stage
         return J

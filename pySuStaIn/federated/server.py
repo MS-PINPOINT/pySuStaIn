@@ -88,14 +88,14 @@ class FederatedZscoreSustain(ZscoreSustain):
             min_zscore_bound = max(possible_zscores_biomarker[min_filter])
             min_zscore_bound_event = events[((self.stage_zscore[0] == min_zscore_bound).astype(int) +
                                              (self.stage_biomarker_index[0] == selected_biomarker).astype(int)) == 2]
-            move_event_to_lower_bound = current_location[min_zscore_bound_event] + 1
+            move_event_to_lower_bound = int(current_location[min_zscore_bound_event[0]] + 1)
         else:
             move_event_to_lower_bound = 0
         if np.any(max_filter):
             max_zscore_bound = min(possible_zscores_biomarker[max_filter])
             max_zscore_bound_event = events[((self.stage_zscore[0] == max_zscore_bound).astype(int) +
                                              (self.stage_biomarker_index[0] == selected_biomarker).astype(int)) == 2]
-            move_event_to_upper_bound = current_location[max_zscore_bound_event]
+            move_event_to_upper_bound = int(current_location[max_zscore_bound_event[0]])
         else:
             move_event_to_upper_bound = N
         if move_event_to_lower_bound == move_event_to_upper_bound:
@@ -164,9 +164,22 @@ class FederatedZscoreSustain(ZscoreSustain):
                 best = (ml_seq, ml_f, ml_like)
         return best
 
-    def subtype_and_stage(self, S, f):
-        """Per-centre ML subtype+stage (assignments computed locally)."""
-        out = {}
-        for c in self.clients:
-            out[c.name] = c.subtype_and_stage(S, np.asarray(f).reshape(-1))
-        return out
+    def run_sustain_algorithm(self, *args, **kwargs):
+        raise NotImplementedError(
+            "FederatedZscoreSustain currently supports ML fitting via fit() and "
+            "fit_em() only. The inherited run_sustain_algorithm() also runs "
+            "MCMC uncertainty and per-subject central staging, which are not "
+            "implemented for the aggregate-only federated path."
+        )
+
+    def subtype_and_stage(self, S, f, *, return_individual=False):
+        """Per-centre subtype/stage summaries by default.
+
+        Individual assignments are row-level outputs. Keep them at the centre in
+        a real federation; ``return_individual=True`` is only for local
+        in-process simulations or debugging where row-level return is allowed.
+        """
+        f = np.asarray(f).reshape(-1)
+        if return_individual:
+            return {c.name: c.subtype_and_stage(S, f) for c in self.clients}
+        return {c.name: c.subtype_stage_summary(S, f) for c in self.clients}

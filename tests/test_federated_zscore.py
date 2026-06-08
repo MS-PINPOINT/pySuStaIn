@@ -7,6 +7,7 @@ same sequences, fractions and log-likelihood.
 import tempfile
 
 import numpy as np
+from setuptools import find_packages
 
 from pySuStaIn.ZscoreSustain import ZscoreSustain
 from pySuStaIn.federated.client import ZscoreFederatedClient
@@ -57,3 +58,35 @@ def test_single_subtype_equivalence():
     fs, ff, fl = fed.fit_em(S0.copy(), f0.copy(), np.random.default_rng(5))
     assert abs(pl - fl) < 1e-6
     assert np.array_equal(ps.astype(int), fs.astype(int))
+
+
+def test_package_discovery_includes_federated_subpackages():
+    packages = set(find_packages())
+    assert "pySuStaIn.federated" in packages
+    assert "pySuStaIn.federated.experiments" in packages
+
+
+def test_server_assignment_default_returns_aggregate_counts():
+    sim = simulate_zscore(n_biomarkers=4, n_samples=80, n_subtypes=2, seed=13)
+    data, Zv, Zm, labels = sim["data"], sim["Z_vals"], sim["Z_max"], sim["labels"]
+    shards = split_into_centres(data.shape[0], n_centres=4, seed=13)
+    pooled = _pooled(data, Zv, Zm, labels)
+    clients = [ZscoreFederatedClient(data[ix], Zv, Zm, labels, name=f"c{i}")
+               for i, ix in enumerate(shards)]
+    fed = FederatedZscoreSustain(clients, Zv, Zm, labels, N_S_max=2)
+
+    sd = pooled._AbstractSustain__sustainData
+    S0 = np.array([pooled._initialise_sequence(sd, np.random.default_rng(13))[0]
+                   for _ in range(2)])
+    f0 = np.ones(2) / 2
+
+    summaries = fed.subtype_and_stage(S0, f0)
+    for client, summary in zip(clients, summaries.values()):
+        counts = summary["subtype_stage_counts"]
+        assert counts.shape == (2, fed._N + 1)
+        assert counts.sum() == client.num_samples
+        assert "subtype_counts" in summary
+        assert "stage_counts" in summary
+
+    individual = fed.subtype_and_stage(S0, f0, return_individual=True)
+    assert len(individual["c0"][0]) == clients[0].num_samples
