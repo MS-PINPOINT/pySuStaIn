@@ -29,8 +29,8 @@ def simulate_zscore(n_biomarkers=10, n_samples=1000, n_subtypes=2,
     gt_subtypes = rng.choice(n_subtypes, size=n_samples, p=subtype_fractions)
 
     n_controls = int(round(n_samples * frac_controls))
-    gt_stages = np.zeros((n_samples, 1), dtype=int)
-    gt_stages[n_controls:, 0] = rng.integers(1, N_stages + 1, size=n_samples - n_controls)
+    gt_stages = np.zeros(n_samples, dtype=int)
+    gt_stages[n_controls:] = rng.integers(1, N_stages + 1, size=n_samples - n_controls)
 
     data, data_denoised, stage_value = ZscoreSustain.generate_data(
         gt_subtypes, gt_stages, gt_sequences, Z_vals, Z_max
@@ -92,7 +92,7 @@ def simulate_longitudinal(n_biomarkers=10, n_subjects=600, n_subtypes=3, n_visit
     # expand to visit level
     subtypes_visit = np.repeat(gt_subtypes, n_visits)
     subject_ids = np.repeat(np.arange(n_subjects), n_visits)
-    stages_visit = subj_stages.reshape(-1, 1)
+    stages_visit = subj_stages.reshape(-1)
 
     visit_data, _, _ = ZscoreSustain.generate_data(
         subtypes_visit, stages_visit, gt_sequences, Z_vals, Z_max
