@@ -88,14 +88,14 @@ class FederatedZscoreSustain(ZscoreSustain):
             min_zscore_bound = max(possible_zscores_biomarker[min_filter])
             min_zscore_bound_event = events[((self.stage_zscore[0] == min_zscore_bound).astype(int) +
                                              (self.stage_biomarker_index[0] == selected_biomarker).astype(int)) == 2]
-            move_event_to_lower_bound = current_location[min_zscore_bound_event] + 1
+            move_event_to_lower_bound = int(current_location[min_zscore_bound_event[0]] + 1)
         else:
             move_event_to_lower_bound = 0
         if np.any(max_filter):
             max_zscore_bound = min(possible_zscores_biomarker[max_filter])
             max_zscore_bound_event = events[((self.stage_zscore[0] == max_zscore_bound).astype(int) +
                                              (self.stage_biomarker_index[0] == selected_biomarker).astype(int)) == 2]
-            move_event_to_upper_bound = current_location[max_zscore_bound_event]
+            move_event_to_upper_bound = int(current_location[max_zscore_bound_event[0]])
         else:
             move_event_to_upper_bound = N
         if move_event_to_lower_bound == move_event_to_upper_bound:
